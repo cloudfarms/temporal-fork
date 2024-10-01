@@ -369,8 +369,11 @@ func (p *executionRateLimitedPersistenceClient) GetHistoryTasks(
 	}
 
 	response, err := p.persistence.GetHistoryTasks(ctx, request)
+	p.logger.Info(fmt.Sprintf("PPV DEBUG: GetHistoryTasks: Request: %+v, Response: %+v", request, response))
 	if request.TaskCategory.Type() == tasks.CategoryTypeScheduled {
-		p.logger.Info(fmt.Sprintf("PPV DEBUG: GetHistoryTasks: Request: %+v, Response: %+v", request, response))
+		for _, task := range response.Tasks {
+			p.logger.Info(fmt.Sprintf("PPV DEBUG: GetHistoryTasks Returned task with WorkflowID %v TaskID %v VisibilityTimestamp %v", task.GetWorkflowID(), task.GetTaskID(), task.GetVisibilityTime()))
+		}
 	}
 	return response, err
 }

@@ -26,6 +26,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	commonpb "go.temporal.io/api/common/v1"
@@ -368,6 +369,9 @@ func (p *executionRateLimitedPersistenceClient) GetHistoryTasks(
 	}
 
 	response, err := p.persistence.GetHistoryTasks(ctx, request)
+	if request.TaskCategory.Type() == tasks.CategoryTypeScheduled {
+		p.logger.Info(fmt.Sprintf("PPV DEBUG: GetHistoryTasks: Request: %+v, Response: %+v", request, response))
+	}
 	return response, err
 }
 

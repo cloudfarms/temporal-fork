@@ -282,6 +282,13 @@ func (p *executionRateLimitedPersistenceClient) UpdateWorkflowExecution(
 	}
 
 	resp, err := p.persistence.UpdateWorkflowExecution(ctx, request)
+	for _, l := range request.UpdateWorkflowMutation.Tasks {
+		for _, task := range l {
+			if task.GetCategory().Type() == tasks.CategoryTypeScheduled {
+				p.logger.Info(fmt.Sprintf("PPV DEBUG: UpdateWorkflowExecution added Task with WorkflowID %v TaskID %v VisibilityTimestamp %v", task.GetWorkflowID(), task.GetTaskID(), task.GetVisibilityTime()))
+			}
+		}
+	}
 	return resp, err
 }
 

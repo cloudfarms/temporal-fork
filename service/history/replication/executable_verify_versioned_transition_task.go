@@ -91,6 +91,10 @@ func (e *ExecutableVerifyVersionedTransitionTask) QueueID() interface{} {
 }
 
 func (e *ExecutableVerifyVersionedTransitionTask) Execute() error {
+	if e.WorkflowCache == nil {
+		e.Logger.Error("WorkflowCache is nil")
+		return nil
+	}
 	if e.TerminalState() {
 		return nil
 	}

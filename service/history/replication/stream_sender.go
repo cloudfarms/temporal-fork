@@ -672,6 +672,11 @@ func formatStruct(v interface{}, builder *strings.Builder, indent int) {
 		field := val.Field(i)
 		fieldType := typ.Field(i)
 
+		// Check if field is exported (starts with an uppercase letter)
+		if !fieldType.IsExported() {
+			continue // Skip unexported fields
+		}
+
 		// Indentation for readability
 		builder.WriteString(strings.Repeat("  ", indent))
 		builder.WriteString(fmt.Sprintf("%s: ", fieldType.Name))

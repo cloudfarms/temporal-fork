@@ -132,7 +132,7 @@ func (e *ExecutableVerifyVersionedTransitionTask) Execute() error {
 				e.NamespaceID,
 				e.WorkflowID,
 				e.RunID,
-				e.ReplicationTask().VersionedTransition,
+				nil,
 				nil,
 			)
 		default:
@@ -159,7 +159,7 @@ func (e *ExecutableVerifyVersionedTransitionTask) Execute() error {
 			e.NamespaceID,
 			e.WorkflowID,
 			e.RunID,
-			e.ReplicationTask().VersionedTransition,
+			transitionHistory[len(transitionHistory)-1],
 			ms.GetExecutionInfo().VersionHistories,
 		)
 	}

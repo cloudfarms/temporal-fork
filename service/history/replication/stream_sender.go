@@ -30,6 +30,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -537,13 +539,13 @@ Loop:
 			if err != nil {
 				switch task := item.(type) {
 				case *tasks.SyncActivityTask:
-					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert activity task, %+v", task), tag.Error(err))
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert activity task, %v", StructToString(task)), tag.Error(err))
 				case *tasks.SyncVersionedTransitionTask:
-					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert versioned task, %+v", task), tag.Error(err))
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert versioned task, %v", StructToString(task)), tag.Error(err))
 				case *tasks.HistoryReplicationTask:
-					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert history task, %+v", task), tag.Error(err))
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert history task, %v", StructToString(task)), tag.Error(err))
 				default:
-					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert task, %+v", task.GetType().String()), tag.Error(err))
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert task, %v", StructToString(task)), tag.Error(err))
 				}
 
 				return err
@@ -647,5 +649,40 @@ func (s *StreamSenderImpl) getTaskPriority(task tasks.Task) enumsspb.TaskPriorit
 		return t.Priority
 	default:
 		return enumsspb.TASK_PRIORITY_HIGH
+	}
+}
+
+func StructToString(v interface{}) string {
+	var builder strings.Builder
+	formatStruct(v, &builder, 0)
+	return builder.String()
+}
+
+func formatStruct(v interface{}, builder *strings.Builder, indent int) {
+	val := reflect.ValueOf(v)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	if val.Kind() != reflect.Struct {
+		return
+	}
+
+	typ := val.Type()
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldType := typ.Field(i)
+
+		// Indentation for readability
+		builder.WriteString(strings.Repeat("  ", indent))
+		builder.WriteString(fmt.Sprintf("%s: ", fieldType.Name))
+
+		if field.Kind() == reflect.Ptr && field.IsNil() {
+			builder.WriteString("nil\n")
+		} else if field.Kind() == reflect.Struct {
+			builder.WriteString("(struct)\n")
+			formatStruct(field.Interface(), builder, indent+1) // Recursive call for nested structs
+		} else {
+			builder.WriteString(fmt.Sprintf("%v\n", field.Interface()))
+		}
 	}
 }

@@ -535,7 +535,17 @@ Loop:
 		operation := func() error {
 			task, err := s.taskConverter.Convert(item, s.clientShardKey.ClusterID)
 			if err != nil {
-				s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert replication task, %+v", item), tag.Error(err))
+				switch task := item.(type) {
+				case *tasks.SyncActivityTask:
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert activity task, %+v", task), tag.Error(err))
+				case *tasks.SyncVersionedTransitionTask:
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert versioned task, %+v", task), tag.Error(err))
+				case *tasks.HistoryReplicationTask:
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert history task, %+v", task), tag.Error(err))
+				default:
+					s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert task, %+v", task.GetType().String()), tag.Error(err))
+				}
+
 				return err
 			}
 			if task == nil {

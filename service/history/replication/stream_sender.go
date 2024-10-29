@@ -535,6 +535,7 @@ Loop:
 		operation := func() error {
 			task, err := s.taskConverter.Convert(item, s.clientShardKey.ClusterID)
 			if err != nil {
+				s.logger.Error(fmt.Sprintf("ReplicationServiceError StreamSender unable to convert replication task, %+v", item), tag.Error(err))
 				return err
 			}
 			if task == nil {

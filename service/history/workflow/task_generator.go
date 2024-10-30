@@ -741,7 +741,6 @@ func (r *TaskGeneratorImpl) GenerateMigrationTasks() ([]tasks.Task, int64, error
 	}
 	now := time.Now().UTC()
 	workflowKey := r.mutableState.GetWorkflowKey()
-
 	if r.mutableState.GetExecutionState().State == enumsspb.WORKFLOW_EXECUTION_STATE_COMPLETED {
 		syncWorkflowStateTask := []tasks.Task{&tasks.SyncWorkflowStateTask{
 			// TaskID, VisibilityTimestamp is set by shard
@@ -751,11 +750,23 @@ func (r *TaskGeneratorImpl) GenerateMigrationTasks() ([]tasks.Task, int64, error
 		}}
 		if r.mutableState.IsTransitionHistoryEnabled() {
 			transitionHistory := executionInfo.TransitionHistory
+			currentHistory, err := versionhistory.GetCurrentVersionHistory(r.mutableState.GetExecutionInfo().VersionHistories)
+			if err != nil {
+				return nil, 0, err
+			}
+			item, err := versionhistory.GetLastVersionHistoryItem(currentHistory)
+			if err != nil {
+				return nil, 0, err
+			}
+			firstEventID := item.EventId
+			nextEventID := item.EventId + 1
 			return []tasks.Task{&tasks.SyncVersionedTransitionTask{
 				WorkflowKey:         workflowKey,
 				Priority:            enumsspb.TASK_PRIORITY_LOW,
 				VersionedTransition: transitionHistory[len(transitionHistory)-1],
 				TaskEquivalents:     syncWorkflowStateTask,
+				FirstEventID:        firstEventID,
+				NextEventID:         nextEventID,
 			}}, 1, nil
 		}
 		return syncWorkflowStateTask, 1, nil
@@ -787,12 +798,24 @@ func (r *TaskGeneratorImpl) GenerateMigrationTasks() ([]tasks.Task, int64, error
 	}
 
 	if r.mutableState.IsTransitionHistoryEnabled() {
+		currentHistory, err := versionhistory.GetCurrentVersionHistory(r.mutableState.GetExecutionInfo().VersionHistories)
+		if err != nil {
+			return nil, 0, err
+		}
+		item, err := versionhistory.GetLastVersionHistoryItem(currentHistory)
+		if err != nil {
+			return nil, 0, err
+		}
+		firstEventID := item.EventId
+		nextEventID := item.EventId + 1
 		transitionHistory := executionInfo.TransitionHistory
 		return []tasks.Task{&tasks.SyncVersionedTransitionTask{
 			WorkflowKey:         workflowKey,
 			Priority:            enumsspb.TASK_PRIORITY_LOW,
 			VersionedTransition: transitionHistory[len(transitionHistory)-1],
 			TaskEquivalents:     replicationTasks,
+			FirstEventID:        firstEventID,
+			NextEventID:         nextEventID,
 		}}, 1, nil
 	}
 	return replicationTasks, executionInfo.StateTransitionCount, nil

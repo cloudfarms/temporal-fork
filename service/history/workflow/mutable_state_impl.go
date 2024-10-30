@@ -5649,6 +5649,9 @@ func (ms *MutableStateImpl) closeTransactionPrepareReplicationTasks(
 					ms.versionedTransitionInDB,
 					ms.executionInfo.TransitionHistory[len(ms.executionInfo.TransitionHistory)-1],
 				) != 0 {
+					if firstEventID == 0 || nextEventID == 0 {
+						ms.logger.Error(fmt.Sprintf("FirstEventId or LastEventId is zero: %v, %v, %v, %v", firstEventID, nextEventID, eventBatches, transitionHistory))
+					}
 					syncVersionedTransitionTask := &tasks.SyncVersionedTransitionTask{
 						WorkflowKey:         workflowKey,
 						VisibilityTimestamp: now,

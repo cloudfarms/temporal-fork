@@ -419,14 +419,14 @@ func (s *SyncStateRetrieverImpl) getEventsBlob(
 			}
 			left := endEventId - startEventId
 			if !isNewRun && int64(len(xdcCacheValue.EventBlobs)) >= left {
-				s.logger.Error(
-					fmt.Sprintf("xdc cached events are truncated, want [%d, %d), got [%d, %d) from cache",
-						startEventId, endEventId, startEventId, xdcCacheValue.NextEventID),
-					tag.FirstEventVersion(eventVersion),
-					tag.WorkflowNamespaceID(workflowKey.NamespaceID),
-					tag.WorkflowID(workflowKey.WorkflowID),
-					tag.WorkflowRunID(workflowKey.RunID),
-				)
+				//s.logger.Error(
+				//	fmt.Sprintf("xdc cached events are truncated, want [%d, %d), got [%d, %d) from cache",
+				//		startEventId, endEventId, startEventId, xdcCacheValue.NextEventID),
+				//	tag.FirstEventVersion(eventVersion),
+				//	tag.WorkflowNamespaceID(workflowKey.NamespaceID),
+				//	tag.WorkflowID(workflowKey.WorkflowID),
+				//	tag.WorkflowRunID(workflowKey.RunID),
+				//)
 				eventBlobs = append(eventBlobs, xdcCacheValue.EventBlobs[:left]...)
 				return eventBlobs, nil
 			}

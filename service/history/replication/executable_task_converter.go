@@ -86,6 +86,7 @@ func (e *executableTaskConverterImpl) convertOne(
 	} else {
 		taskCreationTime = time.Now().UTC()
 	}
+	e.processToolBox.Logger.Info(fmt.Sprintf("Received replication task: %v", replicationTask))
 
 	switch replicationTask.GetTaskType() {
 	case enumsspb.REPLICATION_TASK_TYPE_SYNC_SHARD_STATUS_TASK: // TODO to be deprecated

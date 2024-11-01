@@ -6009,13 +6009,13 @@ func (ms *MutableStateImpl) startTransactionHandleWorkflowTaskFailover() (bool, 
 		return false, nil
 	}
 
-	lastEventVersion, err := ms.GetLastEventVersion()
-	if err != nil {
-		return false, err
-	}
-	if lastEventVersion != workflowTask.Version {
-		return false, serviceerror.NewInternal(fmt.Sprintf("MutableStateImpl encountered mismatch version, workflow task: %v, last event version %v", workflowTask.Version, lastEventVersion))
-	}
+	//lastEventVersion, err := ms.GetLastEventVersion()
+	//if err != nil {
+	//	return false, err
+	//}
+	//if lastEventVersion != workflowTask.Version {
+	//	return false, serviceerror.NewInternal(fmt.Sprintf("MutableStateImpl encountered mismatch version, workflow task: %v, last event version %v", workflowTask.Version, lastEventVersion))
+	//}
 
 	// NOTE: if lastEventVersion is used here then the version transition history could decrecase
 	//
@@ -6394,14 +6394,15 @@ func (ms *MutableStateImpl) ApplyMutation(
 	currentVersionedTransition := ms.currentVersionedTransition()
 
 	ms.applySignalRequestedIds(mutation.SignalRequestedIds, mutation.ExecutionInfo)
-	err := ms.applyTombstones(mutation.SubStateMachineTombstoneBatches, currentVersionedTransition)
+	err := ms.syncExecutionInfo(ms.executionInfo, mutation.ExecutionInfo, false)
 	if err != nil {
 		return err
 	}
-	err = ms.syncExecutionInfo(ms.executionInfo, mutation.ExecutionInfo)
+	err = ms.applyTombstones(mutation.SubStateMachineTombstoneBatches, currentVersionedTransition)
 	if err != nil {
 		return err
 	}
+
 	if mutation.ExecutionInfo.WorkflowTaskType == enumsspb.WORKFLOW_TASK_TYPE_SPECULATIVE {
 		ms.workflowTaskManager.deleteWorkflowTask()
 	}
@@ -6439,7 +6440,7 @@ func (ms *MutableStateImpl) ApplySnapshot(
 	prevExecutionInfoSize := ms.executionInfo.Size()
 
 	ms.applySignalRequestedIds(snapshot.SignalRequestedIds, snapshot.ExecutionInfo)
-	err := ms.syncExecutionInfo(ms.executionInfo, snapshot.ExecutionInfo)
+	err := ms.syncExecutionInfo(ms.executionInfo, snapshot.ExecutionInfo, true)
 	if err != nil {
 		return err
 	}
@@ -6456,7 +6457,7 @@ func (ms *MutableStateImpl) ApplySnapshot(
 
 	ms.approximateSize += snapshot.ExecutionState.Size() - ms.executionState.Size()
 	ms.executionState = snapshot.ExecutionState
-
+	ms.logger.Info(fmt.Sprintf("TimerInfos: %v", ms.pendingTimerInfoIDs))
 	err = ms.applyUpdatesToSubStateMachines(
 		snapshot.ActivityInfos,
 		snapshot.TimerInfos,
@@ -6507,11 +6508,17 @@ func (ms *MutableStateImpl) applyUpdatesToSubStateMachines(
 		return err
 	}
 
-	err = applyUpdatesToSubStateMachine(ms, ms.pendingTimerInfoIDs, ms.updateTimerInfos, updatedTimerInfos, isSnapshot, ms.DeleteUserTimer, func(current, incoming *persistencespb.TimerInfo) {
-		incoming.TaskStatus = TimerTaskStatusNone
-	}, func(ti *persistencespb.TimerInfo) {
-		ms.pendingTimerEventIDToID[ti.StartedEventId] = ti.TimerId
-	})
+	err = applyUpdatesToSubStateMachine(ms, ms.pendingTimerInfoIDs, ms.updateTimerInfos, updatedTimerInfos, isSnapshot,
+		//ms.DeleteUserTimer,
+		func(id string) error {
+			ms.logger.Info(fmt.Sprintf("%v Deleting timer %v", isSnapshot, id))
+			return ms.DeleteUserTimer(id)
+		},
+		func(current, incoming *persistencespb.TimerInfo) {
+			incoming.TaskStatus = TimerTaskStatusNone
+		}, func(ti *persistencespb.TimerInfo) {
+			ms.pendingTimerEventIDToID[ti.StartedEventId] = ti.TimerId
+		})
 	if err != nil {
 		return err
 	}
@@ -6684,13 +6691,13 @@ func (ms *MutableStateImpl) applyUpdatesToUpdateInfos(
 	}
 }
 
-func (ms *MutableStateImpl) syncExecutionInfo(current *persistencespb.WorkflowExecutionInfo, incoming *persistencespb.WorkflowExecutionInfo) error {
+func (ms *MutableStateImpl) syncExecutionInfo(current *persistencespb.WorkflowExecutionInfo, incoming *persistencespb.WorkflowExecutionInfo, isSnapshot bool) error {
 	doNotSync := func(v any) []interface{} {
 		info, ok := v.(*persistencespb.WorkflowExecutionInfo)
 		if !ok || info == nil {
 			return nil
 		}
-		return []interface{}{
+		list := []interface{}{
 			&info.WorkflowTaskVersion,
 			&info.WorkflowTaskScheduledEventId,
 			&info.WorkflowTaskStartedEventId,
@@ -6718,6 +6725,10 @@ func (ms *MutableStateImpl) syncExecutionInfo(current *persistencespb.WorkflowEx
 			&info.TaskGenerationShardClockTimestamp,
 			&info.UpdateInfos,
 		}
+		if !isSnapshot {
+			list = append(list, &info.SubStateMachineTombstoneBatches)
+		}
+		return list
 	}
 	err := common.MergeProtoExcludingFields(current, incoming, doNotSync)
 	if err != nil {

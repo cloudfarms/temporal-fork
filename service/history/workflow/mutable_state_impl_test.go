@@ -846,6 +846,29 @@ func (s *mutableStateSuite) TestSanitizedMutableState() {
 	s.NoError(err)
 }
 
+func (s *mutableStateSuite) TestSanitizedMutableClone() {
+	txnID := int64(2000)
+	runID := uuid.New()
+	mutableState := TestGlobalMutableState(
+		s.mockShard,
+		s.mockEventsCache,
+		s.logger,
+		1000,
+		tests.WorkflowID,
+		runID,
+	)
+
+	mutableState.executionInfo.LastFirstEventTxnId = txnID
+	mutableState.executionInfo.SubStateMachineTombstoneBatches = []*persistencespb.StateMachineTombstoneBatch{
+		{
+			VersionedTransition: EmptyVersionedTransition,
+		},
+	}
+	ms := mutableState.CloneToProto()
+	ms.ExecutionInfo.SubStateMachineTombstoneBatches = nil
+	s.Equal(0, len(mutableState.executionInfo.SubStateMachineTombstoneBatches))
+}
+
 func (s *mutableStateSuite) prepareTransientWorkflowTaskCompletionFirstBatchApplied(version int64, workflowID, runID string) (*historypb.HistoryEvent, *historypb.HistoryEvent) {
 	namespaceID := tests.NamespaceID
 	execution := &commonpb.WorkflowExecution{

@@ -183,6 +183,9 @@ func (s *SyncStateRetrieverImpl) getSyncStateResult(
 	targetVersionHistories [][]*history.VersionHistoryItem,
 	cacheReleaseFunc wcache.ReleaseCacheFunc,
 ) (_ *SyncStateResult, retError error) {
+	if len(mutableState.GetExecutionInfo().SubStateMachineTombstoneBatches) == 0 {
+		s.logger.Info(fmt.Sprintf("Tombstone is empty: %v", mutableState.GetExecutionInfo()))
+	}
 	shouldReturnMutation := func() bool {
 		if targetCurrentVersionedTransition == nil {
 			return false

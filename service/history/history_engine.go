@@ -26,6 +26,7 @@ package history
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -761,6 +762,7 @@ func (e *historyEngineImpl) BackfillHistoryEvents(
 	ctx context.Context,
 	request *shard.BackfillHistoryEventsRequest,
 ) error {
+	e.logger.Info(fmt.Sprintf("Backfilling events: %v", request.Events))
 	return e.nDCHistoryReplicator.BackfillHistoryEvents(ctx, request)
 }
 

@@ -30,8 +30,12 @@ import (
 	"context"
 	"fmt"
 	"math"
+
 	"reflect"
 	"strings"
+
+	"math/rand"
+
 	"sync"
 	"sync/atomic"
 	"time"
@@ -512,6 +516,7 @@ Loop:
 		if !s.shouldProcessTask(item) {
 			continue
 		}
+		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
 
 		skipCount++
 		// To avoid a situation: we are skipping a lot of tasks and never send any task, receiver side will not have updated high watermark,

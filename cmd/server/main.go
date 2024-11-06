@@ -210,7 +210,6 @@ func buildCLI() *cli.App {
 					)
 				}
 
-				claimMapper, err := authorization.GetClaimMapperFromConfig(&cfg.Global.Authorization, logger)
 				if err != nil {
 					return cli.Exit(fmt.Sprintf("Unable to instantiate claim mapper: %v.", err), 1)
 				}
@@ -222,7 +221,7 @@ func buildCLI() *cli.App {
 					temporal.InterruptOn(temporal.InterruptCh()),
 					temporal.WithAuthorizer(authorizer),
 					temporal.WithClaimMapper(func(cfg *config.Config) authorization.ClaimMapper {
-						return claimMapper
+						return NewJwtClaimMapper(cfg)
 					}),
 				)
 				if err != nil {

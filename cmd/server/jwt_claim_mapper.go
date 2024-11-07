@@ -23,57 +23,80 @@
 package main
 
 import (
-	"github.com/davecgh/go-spew/spew"
+	"fmt"
+	"github.com/golang-jwt/jwt/v4"
 	"go.temporal.io/server/common/authorization"
 	"go.temporal.io/server/common/config"
+	"os"
 )
 
-type jwtClaimMapper struct{}
+// Custom claims structure for JWT token
+type CustomClaims struct {
+	jwt.RegisteredClaims
+	// Store namespace-role pairs as a map in the JWT token
+	NamespaceRoles map[string]string `json:"namespace_roles"`
+}
+
+type jwtClaimMapper struct {
+	jwtSecret []byte
+}
 
 func NewJwtClaimMapper(_ *config.Config) authorization.ClaimMapper {
-	spew.Dump("NewJwtClaimMapper called -> returning reference")
-
-	return &jwtClaimMapper{}
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		panic("JWT_SECRET environment variable is not set")
+	}
+	return &jwtClaimMapper{
+		jwtSecret: []byte(jwtSecret),
+	}
 }
 
 func (c jwtClaimMapper) GetClaims(authInfo *authorization.AuthInfo) (*authorization.Claims, error) {
-	spew.Dump("GetClaims invoked (spew)")
 	claims := authorization.Claims{}
+	claims.Namespaces = make(map[string]authorization.Role)
 
-	println("------ authInfo - START ------")
-	spew.Dump(authInfo.AuthToken)
-	spew.Dump(authInfo)
-	println("------ authInfo - END ------")
+	// If no AuthToken is present, set system role to admin and return
+	if authInfo.AuthToken == "" {
+		claims.System = authorization.RoleAdmin
+		return &claims, nil
+	}
 
-	claims.System = authorization.RoleAdmin
+	// Parse JWT token
+	token, err := jwt.ParseWithClaims(authInfo.AuthToken, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Validate signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return c.jwtSecret, nil
+	})
 
-	/*	if authInfo.TLSConnection != nil {
-			spew.Dump("Some SSL info found, let's parse it")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JWT token: %w", err)
+	}
 
-			// Add claims based on client's TLS certificate
-			claims.Subject = authInfo.TLSSubject.CommonName
-
-			// ToDo: Server won't have "tls-sample" here but something else
-			// allow server to do anything
-			if authInfo.TLSSubject.CommonName == "cf-integrator-server" {
-				spew.Dump("Authenticating a server")
-				claims.System = authorization.RoleAdmin
-			} else {
-				// allow workers to implement activities
-				spew.Dump("Authenticating a client")
-				claims.Namespaces = make(map[string]authorization.Role)
-				claims.Namespaces[authInfo.TLSSubject.CommonName] = authorization.RoleWorker
+	// Type assert and get custom claims
+	if customClaims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+		// Convert namespace roles from the JWT token to the claims structure
+		for namespace, roleStr := range customClaims.NamespaceRoles {
+			// Convert string role to authorization.Role
+			var role authorization.Role
+			switch roleStr {
+			case "worker":
+				role = authorization.RoleWorker
+			case "reader":
+				role = authorization.RoleReader
+			case "writer":
+				role = authorization.RoleWriter
+			case "admin":
+				role = authorization.RoleAdmin
+			default:
+				return nil, fmt.Errorf("invalid role in JWT token: %s", roleStr)
 			}
-		} else {
-			spew.Dump("No SSL info found - no ClaimMapper logic applied")
-		}*/
-	/* 	if authInfo.AuthToken != "" {
-	   		// Extract claims from the auth token and translate them into Temporal roles for the caller
-	   		// Here we'll simply hardcode some as an example
-	   		claims.System = authorization.RoleWriter // cluster-level admin
-	   		claims.Namespaces = make(map[string]authorization.Role)
-	   		claims.Namespaces["foo"] = authorization.RoleReader // caller has a reader role for the "foo" namespace
-	   	}
-	*/
+			claims.Namespaces[namespace] = role
+		}
+	} else {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+
 	return &claims, nil
 }

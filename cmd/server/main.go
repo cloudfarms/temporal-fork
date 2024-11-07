@@ -196,12 +196,9 @@ func buildCLI() *cli.App {
 					logger.Info("Dynamic config client is not configured. Using noop client.")
 				}
 
-				authorizer, err := authorization.GetAuthorizerFromConfig(
-					&cfg.Global.Authorization,
-				)
-				if err != nil {
-					return cli.Exit(fmt.Sprintf("Unable to instantiate authorizer. Error: %v", err), 1)
-				}
+				// Always use customized NewDefaultAuthorizer
+				authorizer := authorization.NewDefaultAuthorizer()
+
 				if authorization.IsNoopAuthorizer(authorizer) && !allowNoAuth {
 					logger.Warn(
 						"Not using any authorizer and flag `--allow-no-auth` not detected. " +

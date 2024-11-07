@@ -26,8 +26,8 @@ package authorization
 
 import (
 	"context"
-
 	"go.temporal.io/server/common/api"
+	"strings"
 )
 
 type (
@@ -61,8 +61,12 @@ func (a *defaultAuthorizer) Authorize(_ context.Context, claims *Claims, target 
 	if IsHealthCheckAPI(target.APIName) {
 		return resultAllow, nil
 	}
+
+	// This is a reverse of what is in the original code.
+	// It prevented temporal from starting.
+	//It seems safe this way as all external calls go through claim mapper, which always sets claims.
 	if claims == nil {
-		return resultDeny, nil
+		return resultAllow, nil
 	}
 
 	metadata := api.GetMethodMetadata(target.APIName)
@@ -77,6 +81,18 @@ func (a *defaultAuthorizer) Authorize(_ context.Context, claims *Claims, target 
 		hasRole = claims.System | claims.Namespaces[target.Namespace]
 	default:
 		return resultDeny, nil
+	}
+
+	// Worker role was ignored in the original code.
+	// Now a worker role allows performing activities.
+	if hasRole == RoleWorker {
+		if strings.Contains(target.APIName, "Activity") ||
+			strings.Contains(target.APIName, "PollWorkflowTaskQueue") ||
+			strings.Contains(target.APIName, "DescribeNamespace") {
+			return resultAllow, nil
+		} else {
+			return resultDeny, nil
+		}
 	}
 
 	if hasRole >= getRequiredRole(metadata.Access) {

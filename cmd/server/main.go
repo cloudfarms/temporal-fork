@@ -153,7 +153,6 @@ func buildCLI() *cli.App {
 			},
 			Action: func(c *cli.Context) error {
 				services := c.StringSlice("service")
-				allowNoAuth := c.Bool("allow-no-auth")
 
 				// For backward compatibility to support old flag format (i.e. `--services=frontend,history,matching`).
 				if c.IsSet("services") {
@@ -194,24 +193,18 @@ func buildCLI() *cli.App {
 					tag.Bool("debug-mode", debug.Enabled),
 				)
 
-				authorizer, err := authorization.GetAuthorizerFromConfig(
-					&cfg.Global.Authorization,
+				// Cloudfarms: JWT authorization (cloudfarms_auth.go) instead of the one in the config
+				authorizer, claimMapper, authCfg, err := cloudfarmsAuth(cfg, logger)
+				if err != nil {
+					return cli.Exit(fmt.Sprintf("Unable to instantiate Cloudfarms authorization: %v", err), 1)
+				}
+				logger.Info("Cloudfarms JWT authorization.",
+					tag.Bool("require-expiration", authCfg.requireExpiration),
+					tag.Bool("allow-tokenless", authCfg.allowTokenless),
 				)
-				if err != nil {
-					return cli.Exit(fmt.Sprintf("Unable to instantiate authorizer. Error: %v", err), 1)
-				}
-				if authorization.IsNoopAuthorizer(authorizer) && !allowNoAuth {
-					logger.Warn(
-						"Not using any authorizer and flag `--allow-no-auth` not detected. " +
-							"Future versions will require using the flag `--allow-no-auth` " +
-							"if you do not want to set an authorizer.",
-					)
-				}
-
-				// Authorization mappers: claim and audience
-				claimMapper, err := authorization.GetClaimMapperFromConfig(&cfg.Global.Authorization, logger)
-				if err != nil {
-					return cli.Exit(fmt.Sprintf("Unable to instantiate claim mapper: %v.", err), 1)
+				if authCfg.allowTokenless {
+					logger.Warn("TEMPORAL_AUTH_ALLOW_TOKENLESS is on: a call without a token gets system admin. " +
+						"Turn it off once every client sends a token and the internal-frontend is enabled.")
 				}
 
 				audienceMapper, err := authorization.GetAudienceMapperFromConfig(&cfg.Global.Authorization)

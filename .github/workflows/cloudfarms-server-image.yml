@@ -1,0 +1,37 @@
+# Cloudfarms: builds the Temporal server image with Cloudfarms JWT authorization (cmd/server/cloudfarms_auth.go) and
+# pushes it to registry.cloudfarms.online/temporal/server:<server version>-<short sha>. Runs on our self-hosted runner,
+# like the other Cloudfarms images; the upstream workflows of this repository are for temporalio's own CI.
+name: cloudfarms-server-image
+
+on:
+  push:
+    branches:
+      - cloudfarms/**
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on:
+      - self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image tag
+        id: tag
+        run: |
+          VERSION=$(grep -oE 'ServerVersion = "[^"]+"' common/headers/version_checker.go | cut -d'"' -f2)
+          echo "IMAGE=registry.cloudfarms.online/temporal/server:${VERSION}-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Login to docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cloudfarms.online
+          username: ${{ secrets.DOCKER_REGISTRY_CLOUDFARMS_ONLINE_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_CLOUDFARMS_ONLINE_PASSWORD }}
+
+      - name: Build and push
+        run: |
+          IMAGE=${{ steps.tag.outputs.IMAGE }}
+          docker build . --file docker/cloudfarms/server.Dockerfile --tag "$IMAGE"
+          docker push "$IMAGE"
+          echo "$IMAGE" >> "$GITHUB_STEP_SUMMARY"

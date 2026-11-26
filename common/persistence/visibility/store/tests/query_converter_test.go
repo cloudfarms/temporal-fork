@@ -218,8 +218,8 @@ var queryConverterTestCases = []queryConverterTestCase{
 	{
 		// Cloudfarms: LIKE on Keyword is supported by the SQL stores only ("contains" / "ends with").
 		name:  "Keyword like (contains)",
-		in:    "WorkflowId LIKE '%martin%'",
-		sql:   "TemporalNamespaceDivision is null and workflow_id like '%martin%' escape '!'",
+		in:    "WorkflowId LIKE '%developer%'",
+		sql:   "TemporalNamespaceDivision is null and workflow_id like '%developer%' escape '!'",
 		esErr: "operation is not supported: operator 'LIKE' not supported for Keyword type search attribute 'WorkflowId'",
 	},
 	{

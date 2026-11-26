@@ -112,6 +112,11 @@ var (
 		sqlparser.NotInStr,
 		sqlparser.StartsWithStr,
 		sqlparser.NotStartsWithStr,
+		// Cloudfarms: LIKE / NOT LIKE on Keyword attributes (e.g. WorkflowId LIKE '%-developer%') so the UI's raw
+		// query box can do "contains" and "ends with". Only the SQL visibility store implements it; the
+		// Elasticsearch converter rejects it with "operator not supported".
+		sqlparser.LikeStr,
+		sqlparser.NotLikeStr,
 	}
 
 	supportedKeywordListOperators = []string{

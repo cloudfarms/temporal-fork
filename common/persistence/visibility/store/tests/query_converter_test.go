@@ -212,8 +212,21 @@ var queryConverterTestCases = []queryConverterTestCase{
 	},
 	{
 		name: "Keyword unsupported operator",
-		in:   "AliasForKeyword01 LIKE 'foo%'",
-		err:  "operation is not supported: operator 'LIKE' not supported for Keyword type search attribute 'AliasForKeyword01'",
+		in:   "AliasForKeyword01 REGEXP 'foo'",
+		err:  "operation is not supported: operator 'REGEXP' not supported for Keyword type search attribute 'AliasForKeyword01'",
+	},
+	{
+		// Cloudfarms: LIKE on Keyword is supported by the SQL stores only ("contains" / "ends with").
+		name:  "Keyword like (contains)",
+		in:    "WorkflowId LIKE '%developer%'",
+		sql:   "TemporalNamespaceDivision is null and workflow_id like '%developer%' escape '!'",
+		esErr: "operation is not supported: operator 'LIKE' not supported for Keyword type search attribute 'WorkflowId'",
+	},
+	{
+		name:  "Keyword not like (ends with)",
+		in:    "WorkflowId NOT LIKE '%!_local'",
+		sql:   "TemporalNamespaceDivision is null and workflow_id not like '%!_local' escape '!'",
+		esErr: "operation is not supported: operator 'NOT LIKE' not supported for Keyword type search attribute 'WorkflowId'",
 	},
 	{
 		name: "Keyword value with escaped chars",

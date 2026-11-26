@@ -356,24 +356,23 @@ func (s *queryConverterSuite) TestConvertComparisonExpr() {
 			),
 		},
 		{
+			// Cloudfarms: LIKE / NOT LIKE supported on Keyword.
 			name:   "like expression",
-			input:  "AliasForKeyword01 like 'foo%'",
-			output: "",
-			err: query.NewConverterError(
-				"%s: invalid operator 'like' in `%s`",
-				query.InvalidExpressionErrMessage,
-				"AliasForKeyword01 like 'foo%'",
-			),
+			input:  "AliasForKeyword01 like '%foo%'",
+			output: "Keyword01 like '%foo%' escape '!'",
+			err:    nil,
 		},
 		{
 			name:   "not like expression",
-			input:  "AliasForKeyword01 NOT LIKE 'foo%'",
+			input:  "AliasForKeyword01 NOT LIKE '%foo'",
+			output: "Keyword01 not like '%foo' escape '!'",
+			err:    nil,
+		},
+		{
+			name:   "like on int is rejected",
+			input:  "HistoryLength like '1%'",
 			output: "",
-			err: query.NewConverterError(
-				"%s: invalid operator 'not like' in `%s`",
-				query.InvalidExpressionErrMessage,
-				"AliasForKeyword01 not like 'foo%'",
-			),
+			err:    query.NewOperatorNotSupportedError("HistoryLength", enumspb.INDEXED_VALUE_TYPE_INT, sqlparser.LikeStr),
 		},
 	}
 
@@ -1231,8 +1230,9 @@ func TestSupportedComparisonOperators(t *testing.T) {
 	s.True(isSupportedComparisonOperator(sqlparser.GreaterEqualStr), msg)
 	s.True(isSupportedComparisonOperator(sqlparser.InStr), msg)
 	s.True(isSupportedComparisonOperator(sqlparser.NotInStr), msg)
-	s.False(isSupportedComparisonOperator(sqlparser.LikeStr), msg)
-	s.False(isSupportedComparisonOperator(sqlparser.NotLikeStr), msg)
+	// Cloudfarms: LIKE / NOT LIKE enabled (Keyword only); same "like ... escape '!'" SQL as STARTS_WITH.
+	s.True(isSupportedComparisonOperator(sqlparser.LikeStr), msg)
+	s.True(isSupportedComparisonOperator(sqlparser.NotLikeStr), msg)
 }
 
 func TestSupportedKeywordListOperators(t *testing.T) {

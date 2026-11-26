@@ -523,6 +523,76 @@ func (s *AdvancedVisibilitySuite) TestListWorkflow_KeywordQuery(enableUnifiedQue
 	s.Empty(resp.GetExecutions())
 }
 
+// Cloudfarms: LIKE / NOT LIKE on Keyword attributes ("contains" / "ends with" on WorkflowId), SQL visibility only.
+func (s *AdvancedVisibilitySuite) TestListWorkflow_WorkflowIdLike(enableUnifiedQueryConverter bool) {
+	env := s.newTestEnv(enableUnifiedQueryConverter)
+	wt := "functional-list-workflow-id-like-test-type"
+	tl := "functional-list-workflow-id-like-test-taskqueue"
+
+	query := func(q string) ([]string, error) {
+		resp, err := env.FrontendClient().ListWorkflowExecutions(s.Context(), &workflowservice.ListWorkflowExecutionsRequest{
+			Namespace: env.Namespace().String(),
+			PageSize:  testcore.DefaultPageSize,
+			Query:     q,
+		})
+		if err != nil {
+			return nil, err
+		}
+		var ids []string
+		for _, e := range resp.GetExecutions() {
+			ids = append(ids, e.GetExecution().GetWorkflowId())
+		}
+		return ids, nil
+	}
+
+	if !testcore.UseSQLVisibility() {
+		_, err := query(`WorkflowId LIKE '%developer%'`)
+		s.ErrorContains(err, "operator 'LIKE' not supported")
+		return
+	}
+
+	ids := []string{"like-alpha-developer", "like-developer-beta", "like-gamma", "like-a_b", "like-axb"}
+	for _, id := range ids {
+		_, err := env.FrontendClient().StartWorkflowExecution(s.Context(), s.createStartWorkflowExecutionRequest(env, id, wt, tl))
+		s.NoError(err)
+	}
+	s.Await(
+		func(s *AdvancedVisibilitySuite) {
+			got, err := query(`WorkflowId LIKE 'like-%'`)
+			s.NoError(err)
+			s.Len(got, len(ids))
+		},
+		testcore.WaitForESToSettle,
+		100*time.Millisecond,
+	)
+
+	for _, tc := range []struct {
+		query string
+		want  []string
+	}{
+		{`WorkflowId LIKE '%developer%'`, []string{"like-alpha-developer", "like-developer-beta"}}, // contains
+		{`WorkflowId LIKE '%-developer'`, []string{"like-alpha-developer"}},                        // ends with
+		{`WorkflowId NOT LIKE '%developer%' AND WorkflowId LIKE 'like-%'`, []string{"like-gamma", "like-a_b", "like-axb"}},
+		{`WorkflowId LIKE '%a_b'`, []string{"like-a_b", "like-axb"}}, // '_' is a wildcard
+		{`WorkflowId LIKE '%a!_b'`, []string{"like-a_b"}},            // '!' escapes it
+		{`WorkflowId LIKE '%nothing%'`, nil},
+	} {
+		got, err := query(tc.query)
+		s.NoError(err, tc.query)
+		s.ElementsMatch(tc.want, got, tc.query)
+	}
+
+	countResp, err := env.FrontendClient().CountWorkflowExecutions(s.Context(), &workflowservice.CountWorkflowExecutionsRequest{
+		Namespace: env.Namespace().String(),
+		Query:     `WorkflowId LIKE '%developer%'`,
+	})
+	s.NoError(err)
+	s.Equal(int64(2), countResp.GetCount())
+
+	_, err = query(`HistoryLength LIKE '1%'`)
+	s.Error(err)
+}
+
 func (s *AdvancedVisibilitySuite) TestListWorkflow_StringQuery(enableUnifiedQueryConverter bool) {
 	env := s.newTestEnv(enableUnifiedQueryConverter)
 	id := "es-functional-list-workflow-string-query-test"

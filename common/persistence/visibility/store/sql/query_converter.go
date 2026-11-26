@@ -196,6 +196,24 @@ func (c *SQLQueryConverter) ConvertKeywordComparisonExpr(
 			Right:    v,
 			Escape:   defaultLikeEscapeExpr,
 		}, nil
+	case sqlparser.LikeStr, sqlparser.NotLikeStr:
+		// Cloudfarms: user-supplied LIKE pattern, passed through as is: '%' and '_' are wildcards and '!' escapes them
+		// (same escape char as STARTS_WITH). Quotes were already escaped by buildValueExpr.
+		v, ok := valueExpr.(*query.UnsafeSQLString)
+		if !ok {
+			return nil, query.NewConverterError(
+				"%s: right-hand side of %q operator must be a literal string (got: %v)",
+				query.InvalidExpressionErrMessage,
+				operator,
+				value,
+			)
+		}
+		return &sqlparser.ComparisonExpr{
+			Operator: operator,
+			Left:     col,
+			Right:    v,
+			Escape:   defaultLikeEscapeExpr,
+		}, nil
 	default:
 		return c.ConvertComparisonExpr(operator, col, value)
 	}

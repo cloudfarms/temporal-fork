@@ -72,6 +72,9 @@ var (
 		sqlparser.NotInStr,
 		sqlparser.StartsWithStr,
 		sqlparser.NotStartsWithStr,
+		// Cloudfarms: LIKE / NOT LIKE, Keyword attributes only (checked in convertComparisonExpr).
+		sqlparser.LikeStr,
+		sqlparser.NotLikeStr,
 	}
 
 	supportedKeyworkListOperators = []string{
@@ -363,6 +366,11 @@ func (c *QueryConverterLegacy) convertComparisonExpr(exprRef *sqlparser.Expr) er
 		return err
 	}
 
+	if (expr.Operator == sqlparser.LikeStr || expr.Operator == sqlparser.NotLikeStr) &&
+		saColNameExpr.valueType != enumspb.INDEXED_VALUE_TYPE_KEYWORD {
+		return query.NewOperatorNotSupportedError(saColNameExpr.alias, saColNameExpr.valueType, expr.Operator)
+	}
+
 	err = c.convertValueExpr(&expr.Right, saColNameExpr.alias, saColNameExpr.fieldName, saColNameExpr.valueType)
 	if err != nil {
 		return err
@@ -403,6 +411,17 @@ func (c *QueryConverterLegacy) convertComparisonExpr(exprRef *sqlparser.Expr) er
 		}
 		expr.Escape = defaultLikeEscapeExpr
 		valueExpr.Val = escapeLikeValueForPrefixSearch(valueExpr.Val, defaultLikeEscapeChar)
+	case sqlparser.LikeStr, sqlparser.NotLikeStr:
+		// Cloudfarms: user-supplied pattern, '!' escapes wildcards (see SQLQueryConverter.ConvertKeywordComparisonExpr).
+		if _, ok := expr.Right.(*unsafeSQLString); !ok {
+			return query.NewConverterError(
+				"%s: right-hand side of '%s' must be a literal string (got: %v)",
+				query.InvalidExpressionErrMessage,
+				expr.Operator,
+				sqlparser.String(expr.Right),
+			)
+		}
+		expr.Escape = defaultLikeEscapeExpr
 	}
 
 	return nil
